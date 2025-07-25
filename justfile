@@ -44,6 +44,8 @@ release version:
     set -euo pipefail
     # Update version in Cargo.toml
     sed -i '' 's/^version = ".*"/version = "{{version}}"/' Cargo.toml
+    # Update Cargo.lock with new version
+    cargo generate-lockfile
     # Commit the version bump
     jj commit -m "Bump version to {{version}}"
     # Export to git and create tag
