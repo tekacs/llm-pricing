@@ -74,15 +74,15 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
     
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: artifacts
-    
     - name: Publish to crates.io
       run: cargo publish
       env:
         CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
     
     - name: Create Release
       uses: softprops/action-gh-release@v2
