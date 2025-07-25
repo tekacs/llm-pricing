@@ -1,6 +1,7 @@
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, cmp::Ordering, str::FromStr};
+use strum::{EnumString, VariantNames};
 
 #[derive(Parser, Debug)]
 #[command(name = "llm-pricing")]
@@ -17,6 +18,29 @@ struct Args {
     /// Show verbose output with all model information
     #[arg(short, long, global = true)]
     verbose: bool,
+
+    /// Sort models by: name, input, output, provider, total (suffix with '-' for reverse)
+    #[arg(short, long, global = true, value_name = "FIELD")]
+    sort: Option<String>,
+
+    /// Reverse the sort order
+    #[arg(short, long, global = true)]
+    reverse: bool,
+}
+
+#[derive(Debug, Clone, EnumString, ValueEnum, VariantNames)]
+#[strum(ascii_case_insensitive)]
+enum SortBy {
+    /// Sort by model name
+    Name,
+    /// Sort by input price (per 1M tokens)
+    Input,
+    /// Sort by output price (per 1M tokens)
+    Output,
+    /// Sort by provider
+    Provider,
+    /// Sort by total cost (calc command only)
+    Total,
 }
 
 #[derive(Parser, Debug)]
@@ -46,7 +70,7 @@ enum Commands {
     },
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 struct Model {
     id: String,
     #[serde(default)]
@@ -66,7 +90,7 @@ struct Model {
     supported_parameters: Option<Vec<String>>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 struct Pricing {
     prompt: String,
     completion: String,
@@ -84,7 +108,7 @@ struct Pricing {
     internal_reasoning: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 struct Architecture {
     modality: Option<String>,
     #[serde(default)]
@@ -95,7 +119,7 @@ struct Architecture {
     instruct_type: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 struct TopProvider {
     #[serde(default)]
     context_length: Option<u64>,
@@ -103,7 +127,7 @@ struct TopProvider {
     is_moderated: Option<bool>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 struct PerRequestLimits {
     #[serde(default)]
     prompt_tokens: Option<String>,
@@ -111,7 +135,7 @@ struct PerRequestLimits {
     completion_tokens: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 struct ApiResponse {
     data: Vec<Model>,
 }
@@ -177,12 +201,73 @@ fn filter_models(
     filtered
 }
 
+fn parse_sort_option(sort_str: Option<String>) -> anyhow::Result<Option<(SortBy, bool)>> {
+    match sort_str {
+        None => Ok(None),
+        Some(s) => {
+            let (sort_key, reverse) = if s.ends_with('-') {
+                (&s[..s.len()-1], true)
+            } else {
+                (s.as_str(), false)
+            };
+            
+            let sort_by = <SortBy as FromStr>::from_str(sort_key)
+                .map_err(|_| {
+                    let valid_options = SortBy::VARIANTS
+                        .iter()
+                        .map(|s| s.to_lowercase())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    anyhow::anyhow!("Invalid sort option: '{}'. Valid options are: {} (suffix with '-' for reverse)", sort_key, valid_options)
+                })?;
+            
+            Ok(Some((sort_by, reverse)))
+        }
+    }
+}
+
 fn format_price_per_million(price_str: &str) -> String {
     if let Ok(price) = price_str.parse::<f64>() {
         format!("{:.2}", price * 1_000_000.0)
     } else {
         "N/A".to_string()
     }
+}
+
+fn sort_models(mut models: Vec<Model>, sort_option: Option<(SortBy, bool)>) -> Vec<Model> {
+    if let Some((sort_by, reverse)) = sort_option {
+        models.sort_by(|a, b| {
+            let ordering = match sort_by {
+                SortBy::Name => a.id.cmp(&b.id),
+                SortBy::Input => {
+                    let a_price = a.pricing.prompt.parse::<f64>().unwrap_or(0.0);
+                    let b_price = b.pricing.prompt.parse::<f64>().unwrap_or(0.0);
+                    a_price.partial_cmp(&b_price).unwrap_or(Ordering::Equal)
+                },
+                SortBy::Output => {
+                    let a_price = a.pricing.completion.parse::<f64>().unwrap_or(0.0);
+                    let b_price = b.pricing.completion.parse::<f64>().unwrap_or(0.0);
+                    a_price.partial_cmp(&b_price).unwrap_or(Ordering::Equal)
+                },
+                SortBy::Provider => {
+                    let a_provider = a.id.split('/').next().unwrap_or("unknown");
+                    let b_provider = b.id.split('/').next().unwrap_or("unknown");
+                    a_provider.cmp(b_provider)
+                },
+                SortBy::Total => {
+                    // Total sorting is handled separately in calc command
+                    Ordering::Equal
+                },
+            };
+            
+            if reverse {
+                ordering.reverse()
+            } else {
+                ordering
+            }
+        });
+    }
+    models
 }
 
 fn parse_price(price_str: &str) -> anyhow::Result<f64> {
@@ -381,11 +466,31 @@ fn print_verbose_format(grouped: &HashMap<String, Vec<Model>>) {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
+    
+    // Parse sort option and handle reverse flag
+    let sort_option = parse_sort_option(args.sort)?;
+    let final_sort_option = match sort_option {
+        Some((sort_by, suffix_reverse)) => {
+            // Combine suffix reverse with explicit reverse flag
+            let reverse = suffix_reverse || args.reverse;
+            Some((sort_by, reverse))
+        }
+        None => None,
+    };
+    
+    // Validate sort option for non-calc commands
+    if let Some((SortBy::Total, _)) = &final_sort_option {
+        if args.command.is_none() || !matches!(args.command, Some(Commands::Calc { .. })) {
+            return Err(anyhow::anyhow!("--sort total can only be used with the calc command"));
+        }
+    }
+    
     let models = fetch_models().await?;
 
     match args.command {
         Some(Commands::List { filters, verbose }) => {
-            let grouped = group_models_by_provider(models);
+            let sorted_models = sort_models(models.clone(), final_sort_option);
+            let grouped = group_models_by_provider(sorted_models);
             let filtered = filter_models(grouped, filters);
 
             if verbose {
@@ -396,7 +501,8 @@ async fn main() -> anyhow::Result<()> {
         }
         None => {
             // Default to list command for backward compatibility
-            let grouped = group_models_by_provider(models);
+            let sorted_models = sort_models(models.clone(), final_sort_option);
+            let grouped = group_models_by_provider(sorted_models);
             let filtered = filter_models(grouped, args.filters);
 
             if args.verbose {
@@ -412,7 +518,13 @@ async fn main() -> anyhow::Result<()> {
             cached,
             ttl,
         }) => {
-            let grouped = group_models_by_provider(models);
+            // For calc command, we handle total sorting after calculating costs
+            let calc_models = if matches!(final_sort_option, Some((SortBy::Total, _))) { 
+                models 
+            } else { 
+                sort_models(models.clone(), final_sort_option.clone())
+            };
+            let grouped = group_models_by_provider(calc_models);
             let filtered = filter_models(grouped, filters);
 
             struct CalcRow {
@@ -473,6 +585,18 @@ async fn main() -> anyhow::Result<()> {
                 eprintln!("No models found matching the filter");
                 eprintln!("Use 'llm-pricing list' to see available models");
                 std::process::exit(1);
+            }
+
+            // Sort by total cost if requested
+            if let Some((SortBy::Total, reverse)) = final_sort_option {
+                calc_rows.sort_by(|a, b| {
+                    let ordering = a.total_cost.partial_cmp(&b.total_cost).unwrap_or(Ordering::Equal);
+                    if reverse {
+                        ordering.reverse()
+                    } else {
+                        ordering
+                    }
+                });
             }
 
             // Calculate column widths
