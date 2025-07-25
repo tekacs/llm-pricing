@@ -12,23 +12,25 @@ A CLI tool to visualize OpenRouter model pricing in a clean, tabular format.
 
 ## Installation
 
+### From Releases
+
+Download the latest binary for your platform from the [releases page](https://github.com/tekacs/llm-pricing/releases).
+
 ### From crates.io
 
 ```bash
 cargo install llm-pricing
 ```
 
-### From Releases
-
-Download the latest binary for your platform from the [releases page](https://github.com/tekacs/llm-pricing/releases).
-
-### From Source
+<details>
+<summary>From Source</summary>
 
 ```bash
 git clone https://github.com/tekacs/llm-pricing.git
 cd llm-pricing
 cargo install --path .
 ```
+</details>
 
 ## Usage
 
