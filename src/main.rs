@@ -116,7 +116,7 @@ fn filter_models(grouped: HashMap<String, Vec<Model>>, filter: Option<String>) -
                 .into_iter()
                 .filter(|model| {
                     model.id.to_lowercase().contains(&filter_lower) ||
-                    model.name.as_ref().map_or(false, |name| name.to_lowercase().contains(&filter_lower))
+                    model.name.as_ref().is_some_and(|name| name.to_lowercase().contains(&filter_lower))
                 })
                 .collect();
             
@@ -149,7 +149,7 @@ struct TableRow {
 fn print_default_format(grouped: &HashMap<String, Vec<Model>>) {
     let mut rows = Vec::new();
     
-    for (_, models) in grouped {
+    for models in grouped.values() {
         for model in models {
             let input_price = format_price_per_million(&model.pricing.prompt);
             let output_price = format_price_per_million(&model.pricing.completion);
@@ -238,11 +238,11 @@ fn print_verbose_format(grouped: &HashMap<String, Vec<Model>>) {
             println!("\nModel: {}", model.id);
             
             if let Some(name) = &model.name {
-                println!("  Name: {}", name);
+                println!("  Name: {name}");
             }
             
             if let Some(description) = &model.description {
-                println!("  Description: {}", description);
+                println!("  Description: {description}");
             }
             
             println!("  Pricing:");
@@ -257,35 +257,35 @@ fn print_verbose_format(grouped: &HashMap<String, Vec<Model>>) {
             }
             
             if let Some(request_price) = &model.pricing.request {
-                println!("    Per Request: ${}", request_price);
+                println!("    Per Request: ${request_price}");
             }
             
             if let Some(image_price) = &model.pricing.image {
-                println!("    Image: ${}", image_price);
+                println!("    Image: ${image_price}");
             }
             
             if let Some(context_length) = model.context_length {
-                println!("  Context Length: {} tokens", context_length);
+                println!("  Context Length: {context_length} tokens");
             }
             
             if let Some(arch) = &model.architecture {
                 if let Some(modality) = &arch.modality {
-                    println!("  Modality: {}", modality);
+                    println!("  Modality: {modality}");
                 }
                 if let Some(tokenizer) = &arch.tokenizer {
-                    println!("  Tokenizer: {}", tokenizer);
+                    println!("  Tokenizer: {tokenizer}");
                 }
                 if let Some(instruct_type) = &arch.instruct_type {
-                    println!("  Instruct Type: {}", instruct_type);
+                    println!("  Instruct Type: {instruct_type}");
                 }
             }
             
             if let Some(top_provider) = &model.top_provider {
                 if let Some(max_completion) = top_provider.max_completion_tokens {
-                    println!("  Max Completion Tokens: {}", max_completion);
+                    println!("  Max Completion Tokens: {max_completion}");
                 }
                 if let Some(is_moderated) = top_provider.is_moderated {
-                    println!("  Moderated: {}", is_moderated);
+                    println!("  Moderated: {is_moderated}");
                 }
             }
         }
