@@ -62,7 +62,6 @@ jobs:
       with:
         files: |
           target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
-        name: ${{ matrix.asset_name }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
