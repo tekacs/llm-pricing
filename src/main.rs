@@ -124,7 +124,14 @@ async fn fetch_models() -> anyhow::Result<Vec<Model>> {
         .await?;
 
     let api_response: ApiResponse = response.json().await?;
-    Ok(api_response.data)
+    
+    // Filter out openrouter/auto which has negative pricing
+    let filtered_models = api_response.data
+        .into_iter()
+        .filter(|model| model.id != "openrouter/auto")
+        .collect();
+    
+    Ok(filtered_models)
 }
 
 fn group_models_by_provider(models: Vec<Model>) -> HashMap<String, Vec<Model>> {
