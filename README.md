@@ -9,7 +9,7 @@ A CLI tool to visualize OpenRouter model pricing and calculate actual request co
 - 💾 **Cache pricing** support with TTL-based pricing (5min vs 1h)
 - 🔍 **Filter models** by name or provider (e.g., `anthropic`, `sonnet`)
 - 📝 **Verbose mode** showing all model details
-- 🌐 **Live data** fetched from OpenRouter API
+- 🌐 **Live data** fetched from [OpenRouter API](https://openrouter.ai/api/v1/models) ([docs](https://openrouter.ai/docs/overview/models), [api reference](https://openrouter.ai/docs/api-reference/list-available-models))
 
 ## Quick Start
 
