@@ -1,14 +1,35 @@
 # LLM Pricing
 
-A CLI tool to visualize OpenRouter model pricing in a clean, tabular format.
+A CLI tool to visualize OpenRouter model pricing and calculate actual request costs in a clean, tabular format.
 
 ## Features
 
 - 📊 **Tabular display** of model pricing per 1M tokens
+- 🧮 **Cost calculation** for actual requests with input/output tokens
+- 💾 **Cache pricing** support with TTL-based pricing (5min vs 1h)
 - 🔍 **Filter models** by name or provider (e.g., `anthropic`, `sonnet`)
-- 💰 **Cache pricing** support for models that offer it
 - 📝 **Verbose mode** showing all model details
 - 🌐 **Live data** fetched from OpenRouter API
+
+## Quick Start
+
+Calculate the cost of a request with 10,000 input tokens, 200 output tokens, and 9,500 cached tokens:
+
+```bash
+llm-pricing calc 10000 200 -c 9500 opus-4 4.1
+```
+
+```
+Cost calculation: 10000 input + 200 output (9500 cached, 5m TTL)
+
+Model                      | Input     | Output    | Cache Read | Cache Write | Total    
+---------------------------+-----------+-----------+------------+-------------+----------
+anthropic/claude-opus-4    | $0.007500 | $0.015000 | $0.014250  | $0.178125   | $0.214875
+openai/gpt-4.1             | $0.001000 | $0.001600 | $0.004750  | $0.000000   | $0.007350
+openai/gpt-4.1-mini        | $0.000200 | $0.000320 | $0.000950  | $0.000000   | $0.001470
+openai/gpt-4.1-nano        | $0.000050 | $0.000080 | $0.000237  | $0.000000   | $0.000367
+thudm/glm-4.1v-9b-thinking | $0.000018 | $0.000028 | $0.000333  | $0.000000   | $0.000378
+```
 
 ## Installation
 
@@ -34,7 +55,45 @@ cargo install --path .
 
 ## Usage
 
-### Basic Usage
+### Calculate Request Costs
+
+Calculate the actual cost of a request with specific token counts:
+
+```bash
+llm-pricing calc 10000 200 opus-4
+```
+
+```
+Cost calculation: 10000 input + 200 output
+
+Model                   | Input     | Output    | Total    
+------------------------+-----------+-----------+----------
+anthropic/claude-opus-4 | $0.150000 | $0.015000 | $0.165000
+```
+
+With cached tokens (uses 5-minute TTL by default):
+
+```bash
+llm-pricing calc 10000 200 -c 9500 opus-4
+```
+
+```
+Cost calculation: 10000 input + 200 output (9500 cached, 5m TTL)
+
+Model                   | Input     | Output    | Cache Read | Cache Write | Total    
+------------------------+-----------+-----------+------------+-------------+----------
+anthropic/claude-opus-4 | $0.007500 | $0.015000 | $0.014250  | $0.178125   | $0.214875
+```
+
+With 1-hour cache TTL (higher write costs):
+
+```bash
+llm-pricing calc 10000 200 -c 9500 --ttl 60 opus-4
+```
+
+### List Models
+
+#### Basic Usage
 
 Show all models in a table format:
 
@@ -140,15 +199,33 @@ Some providers (like Anthropic and xAI) offer caching to reduce costs on repeate
 
 ## CLI Options
 
+### List Command (Default)
+
 ```bash
-llm-pricing [OPTIONS] [FILTER]
+llm-pricing [OPTIONS] [FILTERS...]
 
 Arguments:
-  [FILTER]  Filter models by name (e.g., 'anthropic/', 'sonnet')
+  [FILTERS...]  Filter models by name (e.g., 'anthropic/', 'sonnet')
 
 Options:
   -v, --verbose  Show verbose output with all model information
   -h, --help     Print help
+```
+
+### Calculate Command
+
+```bash
+llm-pricing calc [OPTIONS] <INPUT> <OUTPUT> [FILTERS...]
+
+Arguments:
+  <INPUT>       Number of input tokens
+  <OUTPUT>      Number of output tokens
+  [FILTERS...]  Filter models by name (e.g., 'anthropic/', 'sonnet')
+
+Options:
+  -c, --cached <CACHED>  Number of cached input tokens [default: 0]
+  -t, --ttl <TTL>        Cache TTL in minutes (affects pricing) [default: 5]
+  -h, --help             Print help
 ```
 
 ## Development
