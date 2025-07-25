@@ -440,10 +440,10 @@ async fn main() -> anyhow::Result<()> {
                         }
 
                         if model.pricing.input_cache_write.is_some() {
-                            let actual_write_price = if ttl >= 60 {
-                                input_price * 2.0 // 1-hour TTL is 2x base price
-                            } else {
-                                input_price * 1.25 // 5-minute TTL is 1.25x base price
+                            let actual_write_price = match ttl {
+                                5 => input_price * 1.25, // 5-minute TTL is 1.25x base price
+                                60 => input_price * 2.0,  // 1-hour TTL is 2x base price
+                                _ => unimplemented!("TTL must be exactly 5 or 60 minutes"),
                             };
                             cache_write_cost = (cached as f64) * actual_write_price;
                         }
@@ -511,7 +511,11 @@ async fn main() -> anyhow::Result<()> {
 
             // Print header with request details
             let cache_desc = if cached > 0 {
-                let ttl_desc = if ttl >= 60 { "1h" } else { "5m" };
+                let ttl_desc = match ttl {
+                    5 => "5m",
+                    60 => "1h",
+                    _ => unimplemented!("TTL must be exactly 5 or 60 minutes"),
+                };
                 format!(" ({} cached, {} TTL)", cached, ttl_desc)
             } else {
                 String::new()
