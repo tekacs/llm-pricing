@@ -61,9 +61,9 @@ enum Commands {
         output: u64,
         /// Filter models by name (e.g., 'anthropic/', 'sonnet')
         filters: Vec<String>,
-        /// Number of cached input tokens read from cache (default: 0)
-        #[arg(short, long, default_value = "0")]
-        cached: u64,
+        /// Number of cached input tokens read from cache
+        #[arg(short, long)]
+        cached: Option<u64>,
         /// Cache TTL in minutes (affects pricing for some models, default: 5)
         #[arg(short, long, default_value = "5")]
         ttl: u64,
@@ -536,6 +536,8 @@ async fn main() -> anyhow::Result<()> {
                 total_cost: f64,
             }
 
+            let use_caching = cached.is_some();
+            let cached_tokens = cached.unwrap_or(0);
             let mut calc_rows = Vec::new();
 
             for (_, models_in_provider) in filtered {
@@ -543,9 +545,9 @@ async fn main() -> anyhow::Result<()> {
                     let input_price = parse_price(&model.pricing.prompt)?;
                     let output_price = parse_price(&model.pricing.completion)?;
                     
-                    // cached = tokens read from cache 
+                    // cached_tokens = tokens read from cache 
                     // new_tokens = tokens not in cache that need to be written to cache
-                    let new_tokens = input.saturating_sub(cached);
+                    let new_tokens = input.saturating_sub(cached_tokens);
 
                     let output_cost = (output as f64) * output_price;
 
@@ -553,18 +555,18 @@ async fn main() -> anyhow::Result<()> {
                     let mut cache_write_cost = 0.0;
                     let mut input_cost = 0.0;
 
-                    if cached > 0 {
+                    if cached_tokens > 0 {
                         // Cost for reading cached tokens
                         if let Some(cache_read_price_str) = &model.pricing.input_cache_read {
                             let cache_read_price = parse_price(cache_read_price_str)?;
-                            cache_read_cost = (cached as f64) * cache_read_price;
+                            cache_read_cost = (cached_tokens as f64) * cache_read_price;
                         } else {
-                            cache_read_cost = (cached as f64) * input_price;
+                            cache_read_cost = (cached_tokens as f64) * input_price;
                         }
                     }
 
                     if new_tokens > 0 {
-                        if model.pricing.input_cache_write.is_some() {
+                        if use_caching && model.pricing.input_cache_write.is_some() {
                             // Cost for writing new tokens to cache (replaces regular input cost for these tokens)
                             let actual_write_price = match ttl {
                                 5 => input_price * 1.25, // 5-minute TTL is 1.25x base price
@@ -574,7 +576,7 @@ async fn main() -> anyhow::Result<()> {
                             cache_write_cost = (new_tokens as f64) * actual_write_price;
                             // Cache write cost replaces regular input cost for these tokens
                         } else {
-                            // Regular input cost for tokens that can't be cached
+                            // Regular input cost for tokens (no caching or can't be cached)
                             input_cost = (new_tokens as f64) * input_price;
                         }
                     }
@@ -652,13 +654,13 @@ async fn main() -> anyhow::Result<()> {
                 .max(5);
 
             // Print header with request details
-            let cache_desc = if cached > 0 {
+            let cache_desc = if use_caching && cached_tokens > 0 {
                 let ttl_desc = match ttl {
                     5 => "5m",
                     60 => "1h",
                     _ => unimplemented!("TTL must be exactly 5 or 60 minutes"),
                 };
-                format!(" ({} cached, {} TTL)", cached, ttl_desc)
+                format!(" ({} cached, {} TTL)", cached_tokens, ttl_desc)
             } else {
                 String::new()
             };
@@ -669,7 +671,7 @@ async fn main() -> anyhow::Result<()> {
             );
             println!();
 
-            if cached > 0 {
+            if use_caching {
                 println!("{:<width_model$} | {:<width_input$} | {:<width_output$} | {:<width_read$} | {:<width_write$} | {:<width_total$}",
                     "Model", "Input", "Output", "Cache Read", "Cache Write", "Total",
                     width_model = max_model_width,

@@ -67,7 +67,7 @@ Cost calculation: 10000 input + 200 output
 
 Model                   | Input     | Output    | Total    
 ------------------------+-----------+-----------+----------
-anthropic/claude-opus-4 | $0.000000 | $0.015000 | $0.202500
+anthropic/claude-opus-4 | $0.150000 | $0.015000 | $0.165000
 ```
 
 With cached tokens (uses 5-minute TTL by default):
@@ -89,6 +89,36 @@ With 1-hour cache TTL (higher write costs):
 ```bash
 llm-pricing calc 10000 200 -c 9500 --ttl 60 opus-4
 ```
+
+#### Understanding Cache vs No-Cache Pricing
+
+The `-c` flag indicates you're using caching rules, which affects pricing even when no tokens are cached:
+
+**Without `-c` flag (no caching):**
+```bash
+llm-pricing calc 10000 200 opus-4
+```
+```
+Cost calculation: 10000 input + 200 output
+
+Model                   | Input     | Output    | Total    
+------------------------+-----------+-----------+----------
+anthropic/claude-opus-4 | $0.150000 | $0.015000 | $0.165000
+```
+
+**With `-c 0` flag (using caching, 0 cached tokens):**
+```bash
+llm-pricing calc 10000 200 -c 0 opus-4
+```
+```
+Cost calculation: 10000 input + 200 output
+
+Model                   | Input     | Output    | Cache Read | Cache Write | Total    
+------------------------+-----------+-----------+------------+-------------+----------
+anthropic/claude-opus-4 | $0.000000 | $0.015000 | $0.000000  | $0.187500   | $0.202500
+```
+
+When using caching (`-c` flag), all new tokens are written to cache at cache write prices (1.25x base price for 5-minute TTL), which replaces the regular input cost.
 
 ### List Models
 
@@ -222,7 +252,7 @@ Arguments:
   [FILTERS...]  Filter models by name (e.g., 'anthropic/', 'sonnet')
 
 Options:
-  -c, --cached <CACHED>  Number of cached input tokens read from cache [default: 0]
+  -c, --cached <CACHED>  Number of cached input tokens read from cache. Using this flag enables caching pricing rules.
   -t, --ttl <TTL>        Cache TTL in minutes (affects pricing) [default: 5]
   -h, --help             Print help
 ```
