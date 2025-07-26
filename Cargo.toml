@@ -1,6 +1,6 @@
 [package]
 name = "llm-pricing"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2021"
 description = "A CLI tool to visualize OpenRouter model pricing in a clean, tabular format"
 license = "MIT"
