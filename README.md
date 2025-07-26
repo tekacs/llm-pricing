@@ -16,19 +16,18 @@ A CLI tool to visualize OpenRouter model pricing and calculate actual request co
 Calculate the cost of a request with 10,000 input tokens, 200 output tokens, and 9,500 cached tokens:
 
 ```bash
-llm-pricing calc 10000 200 -c 9500 opus-4 4.1
+llm-pricing calc 10000 200 -c 9500 opus-4 gpt-4.1
 ```
 
 ```
 Cost calculation: 10000 input + 200 output (9500 cached, 5m TTL)
 
-Model                      | Input     | Output    | Cache Read | Cache Write | Total    
----------------------------+-----------+-----------+------------+-------------+----------
-anthropic/claude-opus-4    | $0.007500 | $0.015000 | $0.014250  | $0.178125   | $0.214875
-openai/gpt-4.1             | $0.001000 | $0.001600 | $0.004750  | $0.000000   | $0.007350
-openai/gpt-4.1-mini        | $0.000200 | $0.000320 | $0.000950  | $0.000000   | $0.001470
-openai/gpt-4.1-nano        | $0.000050 | $0.000080 | $0.000237  | $0.000000   | $0.000367
-thudm/glm-4.1v-9b-thinking | $0.000018 | $0.000028 | $0.000333  | $0.000000   | $0.000378
+Model                   | Input     | Output    | Cache Read | Cache Write | Total    
+------------------------+-----------+-----------+------------+-------------+----------
+anthropic/claude-opus-4 | $0.000000 | $0.015000 | $0.014250  | $0.009375   | $0.038625
+openai/gpt-4.1          | $0.001000 | $0.001600 | $0.004750  | $0.000000   | $0.007350
+openai/gpt-4.1-mini     | $0.000200 | $0.000320 | $0.000950  | $0.000000   | $0.001470
+openai/gpt-4.1-nano     | $0.000050 | $0.000080 | $0.000237  | $0.000000   | $0.000367
 ```
 
 ## Installation
@@ -68,7 +67,7 @@ Cost calculation: 10000 input + 200 output
 
 Model                   | Input     | Output    | Total    
 ------------------------+-----------+-----------+----------
-anthropic/claude-opus-4 | $0.150000 | $0.015000 | $0.165000
+anthropic/claude-opus-4 | $0.000000 | $0.015000 | $0.202500
 ```
 
 With cached tokens (uses 5-minute TTL by default):
@@ -82,7 +81,7 @@ Cost calculation: 10000 input + 200 output (9500 cached, 5m TTL)
 
 Model                   | Input     | Output    | Cache Read | Cache Write | Total    
 ------------------------+-----------+-----------+------------+-------------+----------
-anthropic/claude-opus-4 | $0.007500 | $0.015000 | $0.014250  | $0.178125   | $0.214875
+anthropic/claude-opus-4 | $0.000000 | $0.015000 | $0.014250  | $0.009375   | $0.038625
 ```
 
 With 1-hour cache TTL (higher write costs):
@@ -223,7 +222,7 @@ Arguments:
   [FILTERS...]  Filter models by name (e.g., 'anthropic/', 'sonnet')
 
 Options:
-  -c, --cached <CACHED>  Number of cached input tokens [default: 0]
+  -c, --cached <CACHED>  Number of cached input tokens read from cache [default: 0]
   -t, --ttl <TTL>        Cache TTL in minutes (affects pricing) [default: 5]
   -h, --help             Print help
 ```

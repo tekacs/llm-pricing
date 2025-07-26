@@ -61,7 +61,7 @@ enum Commands {
         output: u64,
         /// Filter models by name (e.g., 'anthropic/', 'sonnet')
         filters: Vec<String>,
-        /// Number of cached input tokens (default: 0)
+        /// Number of cached input tokens read from cache (default: 0)
         #[arg(short, long, default_value = "0")]
         cached: u64,
         /// Cache TTL in minutes (affects pricing for some models, default: 5)
@@ -542,29 +542,40 @@ async fn main() -> anyhow::Result<()> {
                 for model in models_in_provider {
                     let input_price = parse_price(&model.pricing.prompt)?;
                     let output_price = parse_price(&model.pricing.completion)?;
-                    let non_cached_input = input.saturating_sub(cached);
+                    
+                    // cached = tokens read from cache 
+                    // new_tokens = tokens not in cache that need to be written to cache
+                    let new_tokens = input.saturating_sub(cached);
 
-                    let input_cost = (non_cached_input as f64) * input_price;
                     let output_cost = (output as f64) * output_price;
 
                     let mut cache_read_cost = 0.0;
                     let mut cache_write_cost = 0.0;
+                    let mut input_cost = 0.0;
 
                     if cached > 0 {
+                        // Cost for reading cached tokens
                         if let Some(cache_read_price_str) = &model.pricing.input_cache_read {
                             let cache_read_price = parse_price(cache_read_price_str)?;
                             cache_read_cost = (cached as f64) * cache_read_price;
                         } else {
                             cache_read_cost = (cached as f64) * input_price;
                         }
+                    }
 
+                    if new_tokens > 0 {
                         if model.pricing.input_cache_write.is_some() {
+                            // Cost for writing new tokens to cache (replaces regular input cost for these tokens)
                             let actual_write_price = match ttl {
                                 5 => input_price * 1.25, // 5-minute TTL is 1.25x base price
                                 60 => input_price * 2.0,  // 1-hour TTL is 2x base price
                                 _ => unimplemented!("TTL must be exactly 5 or 60 minutes"),
                             };
-                            cache_write_cost = (cached as f64) * actual_write_price;
+                            cache_write_cost = (new_tokens as f64) * actual_write_price;
+                            // Cache write cost replaces regular input cost for these tokens
+                        } else {
+                            // Regular input cost for tokens that can't be cached
+                            input_cost = (new_tokens as f64) * input_price;
                         }
                     }
 
