@@ -52,3 +52,5 @@ release version:
     jj git export
     git tag v{{version}}
     git push origin v{{version}}
+    # Push master branch
+    jj push master
